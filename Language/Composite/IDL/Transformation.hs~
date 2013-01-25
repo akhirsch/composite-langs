@@ -1,0 +1,42 @@
+{- Implements the transformation for the IDL. Currently, this doesn't include
+ - any sort of syntactic transformations. Instead, it just describes how to
+ - create a stub from a header file. -}
+
+module Language.Composite.IDL.Transformation where
+  import Language.Pony
+  
+  stubStructName :: Name -> Name
+  stubStructName fname = "__sg_" ++ fname ++ "_data"
+  
+  createStubStructInfo :: Name -> [(SType, String)] -> CompositeInfo
+  createStubStructInfo _ [] = ConmpositeInfo Struct Nothing []
+  createStubStructInfo fname fields = CompositeInfo Struct 
+  (Just $ stubStructName fname)
+  (map (\(t, n) -> Field (Just n) t Nothing))
+  
+  createStubStruct :: Name -> [(SType, String)] -> GComposite
+  createStubStruct fname fields = GComposite CompositeInfo
+  
+  
+  -- Assumes that every string has an integer following it that includes the length. 
+  getStringLengths :: [(SType, String)] -> [String]
+  getStringLengths [] = []
+  getStringLengths ((SPointerTo (SChar _), _) : (SInt _ _, len) : xs) = 
+    len : getStringLengths xs
+  getStringLengths (SPointerTo (SChar _), _) : _ = error "String without length"
+  getStringLengths _ : xs = getStringLengths xs
+  
+  createStubCode :: Name -> SType -> [(SType, String)] -> Function
+  createStubCode fname rtype fields = 
+    let 
+      params = map (\(t, n) -> Parameter (Just n) t) fields
+      fname' = fname ++ "_call"
+      instructions = [
+                       LDeclaration $ Variable "fault" longSignedInt (Just Literal . CInteger $ 0)
+                     , LDeclaration $ Variable "ret" rtype Nothing
+                     , LDeclaration $ Variable "d" (SPointerTo . SComposite $ createStubStructInfo) Nothing
+                     , LDeclaration $ Variable "cb" (SBuiltinType "cbuf") Nothing
+                     , 
+                     ]
+    in
+     Function [] rtype fname' params
