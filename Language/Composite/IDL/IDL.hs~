@@ -1,6 +1,0 @@
-{- Implements the transformation for the IDL. Currently, this doesn't include
- - any sort of syntactic transformations. Instead, it just describes how to
- - create a stub from a header file. -}
-
-module Language.Composite.IDL where
-  import Language.Pony.

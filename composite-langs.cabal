@@ -1,0 +1,18 @@
+Name: composite-langs
+Version: 0.0.1
+Synopsis: a set of languages for use in the Composite operating system
+
+Description: This is a set of languages that can be used by the developers of Composite, a component-based operating system. Composite is developed at The George Washington University, under the direction of Professor Gabriel Parmer. This provides an IDL for describing how data should be marshalled between components, a contract language for specifing the rules that components must follow when talking to each other, and a language for specifying error recovery code generation. These languages are written using the Pony compiler, also built at The George Washington University.
+
+License: LGPL
+License-file: lgpl.txt
+Author: Andrew Hirsch
+Maintainer: akhirsch@gwmail.gwu.edu
+Copyright: (c) 2013 George Washington University
+
+Category: Language
+Build-type: Configure
+Stability: alpha
+Tested-with: GHC
+Cabal-version: >= 1.14
+Extra-source-files: README>md, configure
