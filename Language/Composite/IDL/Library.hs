@@ -1,87 +1,82 @@
+ {-# LANGUAGE ViewPatterns #-}
 module Language.Composite.IDL.Library (
     Spdid
   , StringLength
-  , CField
-  , CFields
-  , getCFieldsFromParameters
-  , getCFields
+  , Field
+  , Fields
+  , getFieldsFromParameters
+  , getFields
   , createStubStruct
   , createStubStructName  
   , getStringLengths
   , isSpdid
   , getSpdid
-  , getCFieldList
+  , getFieldList
   ) where
   import Language.Pony
 
-  type Spdid = Maybe Name
-  type StringLength = (Name, Name)
-  type CField = (SType, String)
-  type CFields = (Spdid, [StringLength], [CField])
+  type Spdid = Maybe String
+  type StringLength = (String, String)
+  type Field = (Fix Sem, String)
+  type Fields = (Spdid, [StringLength], [Field])
 
-  getCFieldsFromParameters :: [Parameter] -> [(SType, String)]
-  getCFieldsFromParameters [] = []
-  getCFieldsFromParameters ((Parameter (Just n) t) : params) = (t, n) : getCFieldsFromParameters params  
-  getCFieldsFromParameters ((Parameter Nothing t) : params) = (t, "") : getCFieldsFromParameters params
+  getFieldsFromParameters :: Fix Sem -> [Field]
+  getFieldsFromParameters sem = [(t, n) | (Fix (Variable t (Fix (Name n)) _)) <- universe sem]
 
-  getCFields :: [(SType, String)] -> CFields
-  getCFields fs =
+  getFields :: [(Fix Sem, String)] -> Fields
+  getFields fs =
     let spdid = getSpdid fs
         strLens = getStringLengths fs
-        fieldL = getCFieldList fs
+        fieldL = getFieldList fs
     in
      (spdid, strLens, fieldL)
 
-  createStubStructInfo :: Name -> [CField] -> CompositeInfo
-  createStubStructInfo _ [] = CompositeInfo Struct Nothing []
-  createStubStructInfo fname fields = let name = "__sg_" ++ fname ++ "_data"
-                                          fname' = Just name
-                                          fn (t, n) = Field (Just n) t Nothing
-                                          fields' = map fn fields
-                                          intZero = Literal . CInteger $ 0
-                                          ary = SArray (SChar Nothing []) (Just intZero) []
-                                          aryField = Field (Just "data") ary Nothing
-                                          fields'' = fields' ++ [aryField]
-                                      in
-                                       CompositeInfo Struct fname' fields''
+  createStubStruct :: String -> [Field] -> Fix Sem
+  createStubStruct _ [] = composite' struct' nil' nil'
+  createStubStruct fnname fields = let name = "__sg_" ++ fnname ++ "_data"
+                                       fname' = name' name
+                                       fn (t, n) = variable' t (name' n) nil'
+                                       fields' = map fn fields
+                                       ary = array' (char' nil') (cint' 0)
+                                       aryField = variable' ary (name' "data") nil'
+                                       fields'' = group' $ fields' ++ [aryField]
+                                   in
+                                    composite' struct' fname' fields''
                                         
-  createStubStructName :: Name -> CompositeInfo
-  createStubStructName fname = let name = "__sg_" ++ fname ++ "_data"
-                                   fname' = Just name
-                               in
-                                CompositeInfo Struct fname' []
+  createStubStructName :: String -> Fix Sem
+  createStubStructName fnname = let name = "__sg_" ++ fnname ++ "_data"
+                                    fname' = name' name
+                                in
+                                 composite' struct' fname' nil'
 
-  createStubStruct :: Name -> [CField] -> SGlobal
-  createStubStruct n cf = GComposite $ createStubStructInfo n cf
-  
     -- Assumes that every string has an integer following it that includes the length. 
-  getStringLengths :: [(SType, String)] -> [StringLength]
+  getStringLengths :: [Field] -> [StringLength]
   getStringLengths [] = []
-  getStringLengths ((SPointerTo (SChar _ _) _, str) : (SInt _ _, len) : xs) = 
+  getStringLengths (((Fix (PointerToT (Fix (CharT _)))), str) : (Fix (IntT {isign = _, ibase = _}), len) : xs) = 
     (str, len) : getStringLengths xs
-  getStringLengths ((SPointerTo (SChar _ _) _,  _) : _) = error "String without length (1)"
+  getStringLengths (((Fix (PointerToT (Fix (CharT _)))),  _) : _) = error "String without length (1)"
   getStringLengths (_ : xs) = getStringLengths xs
 
-  isSpdid :: SType -> Bool
-  isSpdid (STypedef "spdid_t" _ _) = True
+  isSpdid :: Fix Sem -> Bool
+  isSpdid (µ -> TypedefT (Fix (Name "spdid_t"))) = True
   isSpdid _ = False
 
-  getSpdid :: [(SType, String)] ->  Spdid
-  getSpdid (((STypedef "spdid_t" _ _), name) : _) = Just name
+  getSpdid :: [(Fix Sem, String)] ->  Spdid
+  getSpdid ((Fix (TypedefT (Fix (Name "spdid_t"))), n) : _) = Just n
   getSpdid _ = Nothing
   
-  getCFieldList :: [(SType, String)] -> [CField]
-  getCFieldList [] = []
-  getCFieldList as@((t, _) : ts) = let
+  getFieldList :: [Field] -> [Field]
+  getFieldList [] = []
+  getFieldList as@((t, _) : ts) = let
     -- Assumes that there is no spdid
-    getCFieldList' :: [(SType, String)] -> [CField]
-    getCFieldList' ((SPointerTo (SChar _ _) _, _) : (SInt _ _, _) : xs) = 
-      getCFieldList' xs
-    getCFieldList' (x : xs) = x : getCFieldList' xs
-    getCFieldList' [] = []
+    getFieldList' :: [Field] -> [Field]
+    getFieldList' (((Fix (PointerToT (Fix (CharT _)))), _) : (Fix (IntT {isign = _, ibase = _}), _) : xs) =
+      getFieldList' xs
+    getFieldList' (x : xs) = x : getFieldList' xs
+    getFieldList' [] = []
     in
      if isSpdid t
-     then getCFieldList' ts
-     else getCFieldList' as
+     then getFieldList' ts
+     else getFieldList' as
   
   

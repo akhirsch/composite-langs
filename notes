@@ -1,0 +1,6 @@
+How do we know if we should generate the C function, or just the stub (and the _fn_ or not in the .S stub)?
+
+Answer:
+if nargs <= 4 && there are no pointers: no C function, otherwise, use _fn_ and generate the C
+if arg[0] == spdid: then use spdid variants in the .S stub
+
