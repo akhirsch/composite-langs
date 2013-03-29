@@ -1,12 +1,17 @@
+{-# LANGUAGE ViewPatterns #-}
+
 module Main where
   import Language.Pony
   import Language.Composite.IDL
   
-  importStatement (µ -> FunCall (Fix ( Name "cidl_import")) args) = include' args
-  importStatment x = x 
+  importStatement :: Fix Sem -> [Fix Sem]
+  importStatement (µ -> FunCall (Fix ( Name "cidl_import")) [(Fix (CStr str))]) = [include' str]
+  importStatement (µ -> Typedef _ _) = []
+  importStatement x = [x] 
   
   cidlToHeader :: Fix Sem -> Fix Sem
-  cidlToHeader sem = program' [importStatement s | s <- universe sem]
+  cidlToHeader (µ -> Program  stmts) = program' (concatMap importStatement stmts)
+  cidlToHeader x = x
   
   main :: IO ()
   main = run $ def {
