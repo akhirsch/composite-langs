@@ -23,6 +23,7 @@ Library {
   Build-depends:      base >= 4.2 && < 5
                     , pony == 0.2.0
   exposed-modules:    Language.Composite.IDL
+                   , Language.Composite.IDL.SStubASM
   other-modules:      Language.Composite.IDL.Library
   ghc-options:        -O -Wall -fno-warn-orphans -fno-warn-missing-signatures -fwarn-tabs
   Default-extensions: OverloadedStrings
@@ -44,10 +45,10 @@ Executable SStub {
   Buildable: True
 }
 
-Executable CStub {
+Executable Header {
   Build-depends: composite-langs, pony, haskell2010
   Default-language: Haskell2010
-  Main-is: CStub.hs
+  Main-is: Header.hs
   Hs-source-dirs: Language/Composite/IDL
   Buildable: True
 }

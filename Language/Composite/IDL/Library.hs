@@ -9,9 +9,14 @@ module Language.Composite.IDL.Library (
   , createStubStruct
   , createStubStructName  
   , getStringLengths
+  , isCharStar
   , isSpdid
   , getSpdid
   , getFieldList
+  , isPrototype
+  , createC
+  , isPointer
+  , hasSpdid
   ) where
   import Language.Pony
 
@@ -57,6 +62,10 @@ module Language.Composite.IDL.Library (
   getStringLengths (((Fix (PointerToT (Fix (CharT _)))),  _) : _) = error "String without length (1)"
   getStringLengths (_ : xs) = getStringLengths xs
 
+  isCharStar :: Fix Sem -> Bool
+  isCharStar (µ -> PointerToT (Fix (CharT _))) = True
+  isCharStar _ = False
+
   isSpdid :: Fix Sem -> Bool
   isSpdid (µ -> TypedefT (Fix (Name "spdid_t"))) = True
   isSpdid _ = False
@@ -78,5 +87,34 @@ module Language.Composite.IDL.Library (
      if isSpdid t
      then getFieldList' ts
      else getFieldList' as
+  
+  
+  exists :: (a -> Bool) -> [a] -> Bool
+  exists p = (foldl (||) False) . (map p)
+  
+  isPrototype :: Fix Sem -> Bool
+  isPrototype (µ -> Prototype {pname = _, ptype = _, pargs = _}) = True
+  isPrototype _ = False
+  
+  isPointer :: Fix Sem -> Bool
+  isPointer (µ -> PointerToT _) = True
+  isPointer _ = False
+  
+  lengthParams :: Fix Sem -> Int
+  lengthParams (µ -> Arguments ls) = length ls
+  lengthParams _ = -1
+  
+  createC :: Fix Sem -> Bool
+  createC (µ -> Prototype {pname = _, ptype = _, pargs = params}) =
+    lengthParams params > 4 || exists isPointer [t | Fix (Variable t _ _) <- universe params] 
+  createC _ = False  
+  
+  hasSpdid :: Fix Sem -> Bool
+  hasSpdid (µ -> Prototype {pname = _, ptype = _, pargs = params}) =
+    let Fix (Arguments l) = params in
+    case l of 
+      [] -> False
+      (x : _) -> isSpdid x
+  hasSpdid _ = False
   
   
