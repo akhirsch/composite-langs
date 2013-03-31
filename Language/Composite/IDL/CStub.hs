@@ -129,7 +129,9 @@ module Main where
     f n t p = let params = getFieldsFromParameters p
                   function = createStubCode n t params
               in
-               function
+               if createC sem
+               then function
+               else []
     in
     program' . concat $ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
     --program' . concat $ [[name' n, t, params] | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
