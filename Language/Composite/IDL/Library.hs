@@ -103,6 +103,10 @@ module Language.Composite.IDL.Library (
   lengthParams :: Fix Sem -> Int
   lengthParams (µ -> Arguments ls) = length ls
   lengthParams _ = -1
+
+  argsHaveSpdid :: Fix Sem -> Bool
+  argsHaveSpdid (µ -> Arguments xs) = exists isSpdid xs
+  argsHaveSpdid _ = False
   
   createC :: Fix Sem -> Bool
   createC (µ -> Prototype {pname = _, ptype = _, pargs = params}) =
@@ -111,10 +115,7 @@ module Language.Composite.IDL.Library (
   
   hasSpdid :: Fix Sem -> Bool
   hasSpdid (µ -> Prototype {pname = _, ptype = _, pargs = params}) =
-    let Fix (Arguments l) = params in
-    case l of 
-      [] -> False
-      (x : _) -> isSpdid x
+      argsHaveSpdid params
   hasSpdid _ = False
   
   
