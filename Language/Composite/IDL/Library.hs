@@ -105,8 +105,12 @@ module Language.Composite.IDL.Library (
   lengthParams _ = -1
 
   argsHaveSpdid :: Fix Sem -> Bool
-  argsHaveSpdid (µ -> Arguments xs) = exists isSpdid xs
+  argsHaveSpdid (µ -> Arguments xs) = exists varIsSpdid xs
   argsHaveSpdid _ = False
+  
+  varIsSpdid :: Fix Sem -> Bool
+  varIsSpdid (µ -> Variable t _ _) = isSpdid t
+  varIsSpdid _ = False
   
   createC :: Fix Sem -> Bool
   createC (µ -> Prototype {pname = _, ptype = _, pargs = params}) =
