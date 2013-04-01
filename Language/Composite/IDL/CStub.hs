@@ -129,7 +129,7 @@ module Main where
     f n t p = let params = getFieldsFromParameters p
                   function = createStubCode n t params
               in
-               if createC sem
+               if createC (Fix (Prototype {pname = name' n, ptype = t, pargs = p}))
                then function
                else []
     in
