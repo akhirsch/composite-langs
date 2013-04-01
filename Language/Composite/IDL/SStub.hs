@@ -9,7 +9,7 @@ module Main where
   createStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
   createStubCode fnname rtype fs = 
     let
-      fnname' = "__" ++ fnname
+      fnname' = "__sg_" ++ fnname
       structType = createStubStructName fnname
       (spdid, strLengs, fields) = getFields fs
       lenLength = fromIntegral $ length strLengs
@@ -25,7 +25,7 @@ module Main where
           [variable' (builtin' (name' "spdid_t")) (name' "spdid") nil']
       params =  arguments' $ spdList ++ [cbid, len]
       retParams = getReturnParameters fs
-      retFunCall = funcall' (name' "fnname") retParams
+      retFunCall = funcall' (name' fnname) retParams
       ret = return' retFunCall
       retError = return' $ cint' (-5)
       dataFromCbuf = funcall' (name' "cbuf2buf") [name' "cbid", name' "len"]
@@ -77,16 +77,23 @@ module Main where
      
   prototypeToSStub :: Fix Sem -> Fix Sem
   prototypeToSStub sem = let
-    f n t p = let params = getFieldsFromParameters p
-                  function = createStubCode n t params
-              in
-               function
+                f n t p = let params = getFieldsFromParameters p
+                              function = createStubCode n t params
+                          in
+                            if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
+                            then function
+                            else []
+                includes = [[include' "<torrent.h>"]]
     in
-     program' . concat $ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
+     program' . concat $ includes ++ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
      
   prototypeToASM :: Fix Sem -> IO ()
   prototypeToASM sem = 
-    writeSStub . makeSStub $ [(n, createC p, hasSpdid p) | p@(Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
+      let
+          include = "#include <cos_asm_server_stub.h>\n"
+          text    = ".text\n"
+      in
+    writeSStub $ (++) (include ++ text) $ makeSStub $ [(n, createC p, hasSpdid p) | p@(Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
 
   main :: IO ()
   main = run $ def {

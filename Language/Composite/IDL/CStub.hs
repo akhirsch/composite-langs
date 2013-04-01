@@ -11,7 +11,8 @@ module Main where
   createSimpleStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
   createSimpleStubCode fnname rtype fs =
     let
-        params = arguments' $ map (\(t,n) -> variable' t (name' n) nil') fs
+        structure = variable' (pointer_to' $ composite' struct' (name' "usr_inv_cap") nil') (name' "uc") nil'
+        params = arguments' $ structure : (map (\(t,n) -> variable' t (name' n) nil') fs)
         fnname' = fnname ++ "_call"
         asmParams = concat $ [[rtype], [name' fnname]] ++ map (\(t,n) -> [t, name' n]) fs
         asm  = funcall' (name' $ "CSTUB_ASM_" ++ (show $ truncate ((fromIntegral (length asmParams) - 2) / 2))) asmParams
@@ -27,7 +28,8 @@ module Main where
   createStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
   createStubCode fnname rtype fs = 
     let 
-      params = arguments' $ map (\(t, n) -> variable' t (name' n) nil') fs
+      structure = variable' (pointer_to' $ composite' struct' (name' "usr_inv_cap") nil') (name' "uc") nil'
+      params = arguments' $ structure : (map (\(t, n) -> variable' t (name' n) nil') fs)
       fnname' = fnname ++ "_call"
       structType = createStubStructName fnname
       intZero = cint' 0
@@ -142,14 +144,15 @@ module Main where
 
   prototypeToCStub :: Fix Sem -> Fix Sem
   prototypeToCStub sem = let
-    f n t p = let params = getFieldsFromParameters p
-                  function = createStubCode n t params
-              in
-               if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
-               then function
-               else createSimpleStubCode n t params
+                f n t p = let params = getFieldsFromParameters p
+                              function = createStubCode n t params
+                          in
+                            if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
+                            then function
+                            else createSimpleStubCode n t params
+                includes = [[include' "<torrent.h>", include' "<cstub.h>", include' "<print.h>"]]
     in
-    program' . concat $ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
+    program' . concat $ includes ++ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
     --program' . concat $ [[name' n, t, params] | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
     
   main :: IO ()
