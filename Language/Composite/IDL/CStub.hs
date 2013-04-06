@@ -14,15 +14,17 @@ module Main where
         structure = variable' (pointer_to' $ composite' struct' (name' "usr_inv_cap") nil') (name' "uc") nil'
         params = arguments' $ structure : (map (\(t,n) -> variable' t (name' n) nil') fs)
         fnname' = fnname ++ "_call"
-        asmParams = concat $ [[rtype], [name' fnname]] ++ map (\(t,n) -> [t, name' n]) fs
-        asm  = funcall' (name' $ "CSTUB_ASM_" ++ (show $ truncate ((fromIntegral (length asmParams) - 2) / 2))) asmParams
+        asmParams = name' fnname : map (\(_,n) -> name' n) fs
+        asm  = funcall' (name' $ "CSTUB_ASM_" ++ (show $ (length asmParams) - 1)) asmParams
         intZero = cint' 0
-        instructions = [
-             variable' (int' signed' []) (name' "fault") intZero
-            ,variable' rtype (name' "ret") nil'
-            ,asm
-            ,return' (name' "ret")
-            ]
+        returnValue = case rtype of 
+                        Fix VoidT -> []
+                        _         -> [variable' rtype (name' "ret") nil']
+        return = case returnValue of 
+                   [] -> []
+                   _  -> [return' (name' "ret")]
+
+        instructions = [variable' (int' signed' []) (name' "fault") intZero] ++ returnValue ++ [asm] ++ return
     in
       [function' (name' fnname') rtype params (program' instructions)]
   createStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
@@ -149,7 +151,9 @@ module Main where
                           in
                             if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
                             then function
-                            else createSimpleStubCode n t params
+                            else case t of 
+                                   Fix VoidT -> []
+                                   _         -> createSimpleStubCode n t params
                 includes = [[include' "<torrent.h>", include' "<cstub.h>", include' "<print.h>"]]
     in
     program' . concat $ includes ++ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]

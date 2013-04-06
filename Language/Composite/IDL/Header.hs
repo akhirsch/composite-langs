@@ -12,7 +12,11 @@ module Main where
   importStatement x = [x] 
   
   cidlToHeader :: Fix Sem -> Fix Sem
-  cidlToHeader (µ -> Program  stmts) = program' (concatMap importStatement stmts)
+  cidlToHeader (µ -> Program  stmts) = let
+                instrs = concatMap importStatement stmts
+                instrs' = [define' "TORRENT_H"] ++ instrs ++ [endif']
+           in
+      program' instrs'
   cidlToHeader x = x
   
   main :: IO ()
