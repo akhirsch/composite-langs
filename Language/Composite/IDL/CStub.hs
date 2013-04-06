@@ -158,4 +158,5 @@ module Main where
   main :: IO ()
   main = run $ def {
     topDown = [prototypeToCStub]
+    ,bitwiseOperators = ["-->"]
     }
