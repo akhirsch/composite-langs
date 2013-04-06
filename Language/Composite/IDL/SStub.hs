@@ -69,9 +69,9 @@ module Main where
       len n = binary' (name' "d") (name' "->") (brackets' (name' "len") (cint' . fromIntegral $ n))
       addN s n = binary' (len n) (name' "+") s
       unit = funcall' (name' "sizeof") $ [createStubStructName fnname]
-      add = foldl addN unit [1 .. (length strLens)]
+      add = foldl addN unit [0 .. (length strLens - 1)]
       lengthCheck = unlikely' (binary' add (name' "!=") (name' "len")) (return' (cint' $ -4))
-      sanityCheck = unlikely' (binary' (len (length strLens - 1)) (name' "!=") (cint' 0)) (return' (cint' $ -2))
+      sanityCheck = unlikely' (binary' (len (length strLens)) (name' "!=") (cint' 0)) (return' (cint' $ -2))
     in
      [sanityCheck, lengthCheck]
      
