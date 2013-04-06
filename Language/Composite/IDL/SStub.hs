@@ -99,4 +99,5 @@ module Main where
   main = run $ def {
       topDown = [prototypeToSStub]
     , arbitraryIO = [prototypeToASM]
+    , bitwiseOperators = ["-->"]
     } 
