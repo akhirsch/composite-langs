@@ -83,7 +83,7 @@ module Main where
                             if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
                             then function
                             else []
-                includes = [[include' "<torrent.h>"]]
+                includes = [[include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem]]
     in
      program' . concat $ includes ++ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
      

@@ -154,7 +154,7 @@ module Main where
                             else case t of 
                                    Fix VoidT -> []
                                    _         -> createSimpleStubCode n t params
-                includes = [[include' "<torrent.h>", include' "<cstub.h>", include' "<print.h>"]]
+                includes = [[ include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem] ++ [include' "<cstub.h>", include' "<print.h>"]]
     in
     program' . concat $ includes ++ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
     --program' . concat $ [[name' n, t, params] | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
