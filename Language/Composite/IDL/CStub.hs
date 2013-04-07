@@ -17,12 +17,10 @@ module Main where
         asmParams = name' fnname : map (\(_,n) -> name' n) fs
         asm  = funcall' (name' $ "CSTUB_ASM_" ++ (show $ (length asmParams) - 1)) asmParams
         intZero = cint' 0
-        returnValue = case rtype of 
-                        Fix VoidT -> []
-                        _         -> [variable' rtype (name' "ret") nil']
-        return = case returnValue of 
-                   [] -> []
-                   _  -> [return' (name' "ret")]
+        returnValue = [variable' (case rtype of 
+                          Fix VoidT -> int' signed' []
+                          _         -> rtype) (name' "ret") nil']
+        return = [return' (name' "ret")]
 
         instructions = [variable' (int' signed' []) (name' "fault") intZero] ++ returnValue ++ [asm] ++ return
     in
