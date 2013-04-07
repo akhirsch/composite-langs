@@ -24,6 +24,8 @@ Library {
                     , pony == 0.2.0
   exposed-modules:    Language.Composite.IDL
                    , Language.Composite.IDL.SStubASM
+                   , Language.Composite.IDL.CStub.Calls
+                   , Language.Composite.IDL.CStub.Checks		   
   other-modules:      Language.Composite.IDL.Library
   ghc-options:        -O -Wall -fno-warn-orphans -fno-warn-missing-signatures -fwarn-tabs
   Default-extensions: OverloadedStrings
