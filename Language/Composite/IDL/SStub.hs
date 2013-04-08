@@ -1,3 +1,5 @@
+{-#LANGUAGE ViewPatterns #-}
+
 module Main where
 
   import Language.Pony
@@ -75,18 +77,45 @@ module Main where
     in
      [sanityCheck, lengthCheck]
      
-  prototypeToSStub :: Fix Sem -> Fix Sem
-  prototypeToSStub sem = let
-                f n t p = let params = getFieldsFromParameters p
-                              function = createStubCode n t params
-                          in
-                            if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
-                            then function
-                            else []
-                includes = [[include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem]]
-    in
-     program' . concat $ includes ++ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
-     
+  prototypeToSStub :: String -> Fix Sem -> Fix Sem -> [Fix Sem]
+  prototypeToSStub n t p = let params = getFieldsFromParameters p
+                               function = createStubCode n t params
+                           in
+                              if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
+                              then function
+                              else []
+
+  getIncludes :: Fix Sem -> [Fix Sem]
+  getIncludes sem = [include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem]
+    
+  -- so that we don't end up with code after the return
+  -- based on the idea that the code doesn't have a return -- should do better
+  addBeforeRet :: [Fix Sem] -> [Fix Sem] -> [Fix Sem]
+  addBeforeRet s (x : y : []) = x : (s ++ (y : []))
+  addBeforeRet s (x : []) =   s ++ (x : [])
+  addBeforeRet s (x : xs) = x : (addBeforeRet s xs)
+  addBeforeRet _ ([]) = []
+
+  addChecks :: [Fix Sem] -> [Fix Sem]
+  addChecks ((µ -> Post commands) : xs) = addChecks' commands xs
+    where addChecks' c ((µ -> Function n t a (Fix (Program comm))) : ys) =
+            function' t n a (program' $ addBeforeRet c comm) : addChecks ys
+          addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToSStub n t p in
+            case stub of
+              (x : y : zs) -> x : (addChecks' c ((y : zs) ++ xs))
+              (y : _)      -> addChecks' c (stub ++ xs)
+              []           -> addChecks xs
+          addChecks' c ((µ -> Pre commands) : ys) = addChecks' c ys
+          addChecks' _ _ = addChecks xs
+  addChecks ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : xs) = (prototypeToSStub n t p) ++ (addChecks xs)
+  addChecks (_ : xs) = addChecks xs
+  addChecks [] = []
+
+
+  headerToSStub :: Fix Sem -> Fix Sem
+  headerToSStub s@(µ -> Program commands) = program' ((getIncludes s) ++ addChecks commands)
+  headerToSStub x = x
+
   prototypeToASM :: Fix Sem -> IO ()
   prototypeToASM sem = 
       let
@@ -97,7 +126,7 @@ module Main where
 
   main :: IO ()
   main = run $ def {
-      topDown = [prototypeToSStub]
+      topDown = [headerToSStub]
     , arbitraryIO = [prototypeToASM]
     , bitwiseOperators = ["-->"]
     } 

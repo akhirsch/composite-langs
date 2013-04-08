@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {- Implements the transformation for the IDL. Currently, this doesn't include
  - any sort of syntactic transformations. Instead, it just describes how to
  - create a stub from a header file. -}
@@ -143,24 +144,43 @@ module Language.Composite.IDL.CStub.Calls where
     in 
      fillLenAry strs 0
 
-  
-
-  prototypeToCStub :: Fix Sem -> Fix Sem
-  prototypeToCStub sem = let
-                f n t p = let params = getFieldsFromParameters p
-                              function = createStubCode n t params
-                          in
+  prototypeToCStub :: String -> Fix Sem -> Fix Sem -> [Fix Sem]
+  prototypeToCStub n t p = let params = getFieldsFromParameters p
+                               function = createStubCode n t params
+                           in
                             if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
                             then function
                             else case t of 
-                                   Fix VoidT -> []
-                                   _         -> createSimpleStubCode n t params
-                includes = [[ include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem] ++ [include' "<cstub.h>", include' "<print.h>"]]
-    in
-    program' . concat $ includes ++ [f n t params | (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = params})) <- universe sem]
-    
+                              Fix VoidT -> []
+                              _         -> createSimpleStubCode n t params
+  
+
+
+  getIncludes :: Fix Sem -> [Fix Sem]
+  getIncludes sem = [ include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem] ++ [include' "<cstub.h>", include' "<print.h>"]
+  
+  addChecks :: [Fix Sem] -> [Fix Sem]
+  addChecks ((µ -> Pre  commands) : xs) = addChecks' commands xs
+    where addChecks' c ((µ -> Function n t a (Fix (Program comm))) : ys) = 
+            (function' t n a (program' $ c ++ comm)) : addChecks ys
+          addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToCStub n t p in
+            case stub of 
+              (x : y : zs) -> x : (addChecks' c ((y : zs) ++ xs))
+              (y : _)      -> addChecks' c (stub ++ xs)
+              []           -> addChecks xs
+          addChecks' c ((µ -> Post _) : ys) = addChecks' c ys
+          addChecks' _ _ = addChecks xs
+  addChecks ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : xs) = (prototypeToCStub n t p) ++ (addChecks xs)
+  addChecks (_ : xs) = addChecks xs
+  addChecks [] = []
+
+
+  headerToCStub :: Fix Sem -> Fix Sem
+  headerToCStub s@(µ -> Program commands) = program' ((getIncludes s) ++ (addChecks commands))
+  headerToCStub x = x
+  
   doCalls :: IO String
   doCalls = runAndReturn $ def {
-    topDown = [prototypeToCStub]
+    topDown = [headerToCStub]
     ,bitwiseOperators = ["-->"]
     }
