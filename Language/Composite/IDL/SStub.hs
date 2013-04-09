@@ -100,7 +100,7 @@ module Main where
   addChecks :: [Fix Sem] -> [Fix Sem]
   addChecks ((µ -> Post commands) : xs) = addChecks' commands xs
     where addChecks' c ((µ -> Function n t a (Fix (Program comm))) : ys) =
-            function' t n a (program' $ addBeforeRet c comm) : addChecks ys
+            function' n t a (program' $ addBeforeRet c comm) : addChecks ys
           addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToSStub n t p in
             case stub of
               (x : y : zs) -> x : (addChecks' c ((y : zs) ++ ys))
