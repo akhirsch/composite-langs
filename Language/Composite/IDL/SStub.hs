@@ -103,8 +103,8 @@ module Main where
             function' t n a (program' $ addBeforeRet c comm) : addChecks ys
           addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToSStub n t p in
             case stub of
-              (x : y : zs) -> x : (addChecks' c ((y : zs) ++ xs))
-              (y : _)      -> addChecks' c (stub ++ xs)
+              (x : y : zs) -> x : (addChecks' c ((y : zs) ++ ys))
+              (y : _)      -> addChecks' c (stub ++ ys)
               []           -> addChecks xs
           addChecks' c ((µ -> Pre commands) : ys) = addChecks' c ys
           addChecks' _ _ = addChecks xs
