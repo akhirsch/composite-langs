@@ -13,5 +13,4 @@ module Main where
   main :: IO ()
   main = run $ def {
       topDown = [headerToCStub]
-    , bitwiseOperators = ["-->"]
     }

@@ -1,8 +1,8 @@
 {-#LANGUAGE ViewPatterns #-}
 
 module Main where
-
   import Language.Pony
+  import Language.Composite.IDL.StateMachines
   import Language.Composite.IDL
   import Language.Composite.IDL.SStubASM
   import qualified Prelude (foldl)
@@ -28,14 +28,15 @@ module Main where
       params =  arguments' $ spdList ++ [cbid, len]
       retParams = getReturnParameters fs
       retFunCall = funcall' (name' fnname) retParams
-      ret = return' retFunCall
+      retVar = variable' rtype (name' "ret") retFunCall
+      ret = return' (name' "ret")
       retError = return' $ cint' (-5)
       dataFromCbuf = funcall' (name' "cbuf2buf") [name' "cbid", name' "len"]
       instructions = [
                        variable' (pointer_to' structType) (name' "d") nil'
                      , binary' (name' "d") (name' "=") dataFromCbuf
                      , unlikely' (unary' (name' "!") (name' "d")) retError
-                     ] ++ lenChecks ++ [ret]
+                     ] ++ lenChecks ++ [retVar, ret]
     in
      [ ustruct
      , function' (name' fnname') rtype params (program' instructions)
@@ -111,9 +112,10 @@ module Main where
   addChecks (_ : xs) = addChecks xs
   addChecks [] = []
 
-
   headerToSStub :: Fix Sem -> Fix Sem
-  headerToSStub s@(µ -> Program commands) = program' ((getIncludes s) ++ addChecks commands)
+  headerToSStub s@(µ -> Program commands) = 
+    let name = head [str | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr str))])) <- universe s] in
+    program' ((getIncludes s) ++ (addStateMachine s) ++ (map (machineInFunction name) (addChecks commands)))
   headerToSStub x = x
 
   prototypeToASM :: Fix Sem -> IO ()

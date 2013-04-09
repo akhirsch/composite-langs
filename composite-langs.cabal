@@ -25,8 +25,10 @@ Library {
   exposed-modules:    Language.Composite.IDL
                    , Language.Composite.IDL.SStubASM
                    , Language.Composite.IDL.CStub.Calls
-                   , Language.Composite.IDL.CStub.Checks		   
+                   , Language.Composite.IDL.CStub.Checks
+                   , Language.Composite.IDL.StateMachines
   other-modules:      Language.Composite.IDL.Library
+                    , Language.Composite.IDL.CVect
   ghc-options:        -O -Wall -fno-warn-orphans -fno-warn-missing-signatures -fwarn-tabs
   Default-extensions: OverloadedStrings
 }

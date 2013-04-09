@@ -6,7 +6,10 @@
 module Language.Composite.IDL.CStub.Calls where
   import Language.Pony
   import Language.Composite.IDL
-  import qualified Prelude(foldr) 
+  import qualified Language.Composite.IDL.CVect as CVect (lookup)
+  import Language.Composite.IDL.StateMachines
+  import qualified Prelude(foldr, foldl) 
+  import Data.Char (toUpper)
   import Prelude
 
   createSimpleStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
@@ -21,9 +24,9 @@ module Language.Composite.IDL.CStub.Calls where
         returnValue = [variable' (case rtype of 
                           Fix VoidT -> int' signed' []
                           _         -> rtype) (name' "ret") nil']
-        return = [return' (name' "ret")]
+        returnInst = [return' (name' "ret")]
 
-        instructions = [variable' (int' signed' []) (name' "fault") intZero] ++ returnValue ++ [asm] ++ return
+        instructions = [variable' (int' signed' []) (name' "fault") intZero] ++ returnValue ++ [asm] ++ returnInst
     in
       [function' (name' fnname') rtype params (program' instructions)]
   
@@ -83,10 +86,10 @@ module Language.Composite.IDL.CStub.Calls where
   lengthInstruction name lens = let ustruct = createStubStructName name 
                                     bin l r = binary' (name' l) (name' "+") r
                                     lengths = map snd lens
-                                    size = unary' (name' "sizeof") ustruct
-                                    expr = Prelude.foldr bin size lengths
+                                    csize = unary' (name' "sizeof") ustruct
+                                    cexpr = Prelude.foldr bin csize lengths
                                 in 
-                                 variable' (int' signed' []) (name' "sz") expr
+                                 variable' (int' signed' []) (name' "sz") cexpr
   
 
   stringAsserts :: [StringLength] -> [Fix Sem]
@@ -140,7 +143,7 @@ module Language.Composite.IDL.CStub.Calls where
     d = name' "d"
     lenAry = binary' d (name' "->") (name' "len")
     fillLenAry [] n = [binary' (brackets' lenAry (cint' n)) (name' "=") (cint' 0)]
-    fillLenAry ((str, len) : xs) n = (binary' (brackets' lenAry (cint' n)) (name' "=") (name' len)) : fillLenAry xs (n + 1)
+    fillLenAry ((_, len) : xs) n = (binary' (brackets' lenAry (cint' n)) (name' "=") (name' len)) : fillLenAry xs (n + 1)
     in 
      fillLenAry strs 0
 
@@ -154,10 +157,11 @@ module Language.Composite.IDL.CStub.Calls where
                               Fix VoidT -> []
                               _         -> createSimpleStubCode n t params
   
+  
 
 
   getIncludes :: Fix Sem -> [Fix Sem]
-  getIncludes sem = [ include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem] ++ [include' "<cstub.h>", include' "<print.h>"]
+  getIncludes sem = [ include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem] ++ [include' "<cstub.h>", include' "<print.h>", include' "<cvect.h>"]
   
   addChecks :: [Fix Sem] -> [Fix Sem]
   addChecks ((µ -> Pre  commands) : xs) = addChecks' commands xs
@@ -165,22 +169,22 @@ module Language.Composite.IDL.CStub.Calls where
             (function' t n a (program' $ c ++ comm)) : addChecks ys
           addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToCStub n t p in
             case stub of 
-              (x : y : zs) -> x : (addChecks' c ((y : zs) ++ xs))
-              (y : _)      -> addChecks' c (stub ++ xs)
-              []           -> addChecks xs
+              (x : y : zs) -> x : (addChecks' c ((y : zs) ++ ys))
+              (_ : _)      -> addChecks' c (stub ++ ys)
+              []           -> addChecks ys
           addChecks' c ((µ -> Post _) : ys) = addChecks' c ys
           addChecks' _ _ = addChecks xs
   addChecks ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : xs) = (prototypeToCStub n t p) ++ (addChecks xs)
   addChecks (_ : xs) = addChecks xs
   addChecks [] = []
 
-
   headerToCStub :: Fix Sem -> Fix Sem
-  headerToCStub s@(µ -> Program commands) = program' ((getIncludes s) ++ (addChecks commands))
+  headerToCStub s@(µ -> Program commands) =
+    let name = head [str | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr str))])) <- universe s] in
+    program' ((getIncludes s) ++ (addStateMachine s) ++ (map (machineInFunction name) (addChecks commands)))
   headerToCStub x = x
   
   doCalls :: IO String
   doCalls = runAndReturn $ def {
     topDown = [headerToCStub]
-    ,bitwiseOperators = ["-->"]
     }
