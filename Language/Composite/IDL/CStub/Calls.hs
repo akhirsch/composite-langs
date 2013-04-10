@@ -172,7 +172,7 @@ module Language.Composite.IDL.CStub.Calls where
   addChecks :: [Fix Sem] -> [Fix Sem]
   addChecks ((µ -> Pre  commands) : xs) = addChecks' commands xs
     where addChecks' c ((µ -> Function n t a (Fix (Program comm))) : ys) = 
-            (function' t n a (program' $ c ++ comm)) : addChecks ys
+            (function' n t a (program' $ c ++ comm)) : addChecks ys
           addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToCStub' n t p in
             case stub of 
               (x : y : zs) -> x : (addChecks' c ((y : zs) ++ ys))
