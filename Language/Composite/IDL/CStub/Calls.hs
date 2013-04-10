@@ -180,8 +180,13 @@ module Language.Composite.IDL.CStub.Calls where
 
   headerToCStub :: Fix Sem -> Fix Sem
   headerToCStub s@(µ -> Program commands) =
-    let name = head [str | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr str))])) <- universe s] in
-    program' ((getIncludes s) ++ (addStateMachine s) ++ (map (machineInFunction name) (addChecks commands)))
+    let name = head [str | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr str))])) <- universe s] 
+        includes  = getIncludes s
+        stateM    = addStateMachine s
+        commands' = addChecks commands
+        prog      = map (machineInFunction name) commands'
+    in
+    program' $ includes ++ stateM ++ prog
   headerToCStub x = x
   
   doCalls :: IO String
