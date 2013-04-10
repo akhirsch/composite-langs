@@ -8,6 +8,19 @@ module Main where
   import qualified Prelude (foldl)
   import Prelude
   
+  createSimpleStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
+  createSimpleStubCode fnname rtype fs =
+    let
+      params  = arguments' $ map (\(t,n) -> variable' t (name' n) nil') fs
+      fnname' = "__sg_" ++ fnname
+      args    = map (\(_,n) -> name' n) fs
+      call    = funcall' (name' fnname) args
+      retVar  = variable' (name' "ret") rtype call
+      ret     = return' (name' "ret")
+    in
+     [function' (name' fnname') rtype params (program' [retVar, ret])]
+
+
   createStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
   createStubCode fnname rtype fs = 
     let
@@ -86,6 +99,15 @@ module Main where
                               then function
                               else []
 
+  prototypeToSStub' :: String -> Fix Sem -> Fix Sem -> [Fix Sem]
+  prototypeToSStub' n t p = let params = getFieldsFromParameters p
+                                function = createStubCode n t params
+                            in
+                             if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
+                             then function
+                             else createSimpleStubCode n t params
+
+
   getIncludes :: Fix Sem -> [Fix Sem]
   getIncludes sem = [include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem]
     
@@ -101,7 +123,7 @@ module Main where
   addChecks ((µ -> Post commands) : xs) = addChecks' commands xs
     where addChecks' c ((µ -> Function n t a (Fix (Program comm))) : ys) =
             function' n t a (program' $ addBeforeRet c comm) : addChecks ys
-          addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToSStub n t p in
+          addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToSStub' n t p in
             case stub of
               (x : y : zs) -> x : (addChecks' c ((y : zs) ++ ys))
               (y : _)      -> addChecks' c (stub ++ ys)

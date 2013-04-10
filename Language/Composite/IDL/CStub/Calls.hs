@@ -156,9 +156,15 @@ module Language.Composite.IDL.CStub.Calls where
                             else case t of 
                               Fix VoidT -> []
                               _         -> createSimpleStubCode n t params
-  
-  
-
+                              
+                              
+  prototypeToCStub' :: String -> Fix Sem -> Fix Sem -> [Fix Sem]
+  prototypeToCStub' n t p = let params = getFieldsFromParameters p
+                                function = createStubCode n t params
+                            in
+                             if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
+                             then function
+                             else createSimpleStubCode n t params
 
   getIncludes :: Fix Sem -> [Fix Sem]
   getIncludes sem = [ include' $ "<" ++ s ++ ".h>" | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem] ++ [include' "<cstub.h>", include' "<print.h>", include' "<cvect.h>"]
@@ -167,7 +173,7 @@ module Language.Composite.IDL.CStub.Calls where
   addChecks ((µ -> Pre  commands) : xs) = addChecks' commands xs
     where addChecks' c ((µ -> Function n t a (Fix (Program comm))) : ys) = 
             (function' t n a (program' $ c ++ comm)) : addChecks ys
-          addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToCStub n t p in
+          addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToCStub' n t p in
             case stub of 
               (x : y : zs) -> x : (addChecks' c ((y : zs) ++ ys))
               (_ : _)      -> addChecks' c (stub ++ ys)
