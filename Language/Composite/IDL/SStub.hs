@@ -9,13 +9,22 @@ module Main where
   import Prelude
   
   createSimpleStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
+  createSimpleStubCode fnname (Fix VoidT) fs =
+    let
+      params  = arguments' $ map (\(t,n) -> variable' t (name' n) nil') fs
+      fnname' = "__sg_" ++ fnname
+      args    = map (\(_,n) -> name' n) fs
+      call    = funcall' (name' fnname) args
+      ret     = return' nil'
+    in
+     [function' (name' fnname') (Fix VoidT) params (program' [call, ret])]
   createSimpleStubCode fnname rtype fs =
     let
       params  = arguments' $ map (\(t,n) -> variable' t (name' n) nil') fs
       fnname' = "__sg_" ++ fnname
       args    = map (\(_,n) -> name' n) fs
       call    = funcall' (name' fnname) args
-      retVar  = variable' (name' "ret") rtype call
+      retVar  = variable' rtype (name' "ret") call
       ret     = return' (name' "ret")
     in
      [function' (name' fnname') rtype params (program' [retVar, ret])]
