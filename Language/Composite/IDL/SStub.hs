@@ -101,20 +101,16 @@ module Main where
      [sanityCheck, lengthCheck]
      
   prototypeToSStub :: String -> Fix Sem -> Fix Sem -> [Fix Sem]
-  prototypeToSStub n t p = let params = getFieldsFromParameters p
-                               function = createStubCode n t params
-                           in
-                              if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
-                              then function
-                              else []
+  prototypeToSStub n t p = let params = getFieldsFromParameters p in 
+    if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
+    then createStubCode n t params
+    else []
 
   prototypeToSStub' :: String -> Fix Sem -> Fix Sem -> [Fix Sem]
-  prototypeToSStub' n t p = let params = getFieldsFromParameters p
-                                function = createStubCode n t params
-                            in
-                             if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
-                             then function
-                             else createSimpleStubCode n t params
+  prototypeToSStub' n t p = let params = getFieldsFromParameters p in
+    if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
+    then createStubCode n t params
+    else createSimpleStubCode n t params
 
 
   getIncludes :: Fix Sem -> [Fix Sem]

@@ -3,15 +3,14 @@
 module Language.Composite.IDL.StateMachines where
   import Language.Pony
   import Language.Composite.IDL
-  import qualified Language.Composite.IDL.CVect as CVect (lookup, lookupStatic)
   import Data.Char (toUpper)
 
   stateChange :: Fix Sem -> [Fix Sem]
-  stateChange (µ -> Binary s1 (Fix (Name "->")) s2) =
+  stateChange (µ -> Binary (Fix (Name s1)) (Fix (Name "->")) (Fix (Name s2))) =
     let machineName = name' "__sg_m"
         curState    = binary' machineName (name' "->") (name' "cur")
-        check       = binary' curState (name' "==") s1
-        set         = binary' curState (name' "=") s2
+        check       = binary' curState (name' "==") (name' $ map toUpper s1)
+        set         = binary' curState (name' "=") (name' $ map toUpper s2)
     in
      [ifthen' check set]
   stateChange x = [x]
@@ -36,19 +35,42 @@ module Language.Composite.IDL.StateMachines where
     machine = name' $ "__sg_" ++ s ++ "_sm"
     lookupMap = name' $ "__sg_" ++ s ++ "_sm_lookup"
     keyAssign = variable' (int' signed' [long']) keyName key
-    machineVar = variable' (pointer_to' (builtin' machine)) machineName nil'
-    findMachine = binary' machineName (name' "=") (CVect.lookupStatic lookupMap key)
+    machineVar = variable' (pointer_to' (composite' struct' machine nil')) machineName nil'
+    findMachine = binary' machineName (name' "=") (lookupStatic lookupMap key)
      in
      [keyAssign, machineVar, findMachine]
   getMachine _ x = [x]
-    
-  machineInFunction :: String -> Fix Sem -> Fix Sem
-  machineInFunction s (µ -> Function n t a (Fix (Program l))) = 
-    let state = concatMap stateChange $ concatMap (getMachine s) l
-        assert = disallowOthers l
-        prog = assert ++ state
+  
+  getMachineSStub :: String -> Fix Sem -> [Fix Sem]
+  getMachineSStub s (µ -> FunCall (Fix (Name "key")) [key@(Fix(Name _))]) = let
+    machineName = name' "__sg_m"
+    keyName = name' "__sg_k"
+    key' = (binary' (name' "d") (name' "->") key) 
+    machine = name' $ "__sg_" ++ s ++ "_sm"
+    lookupMap = name' $ "__sg_" ++ s ++ "_sm_lookup"
+    keyAssign = variable' (int' signed' [long']) keyName key'
+    machineVar = variable' (pointer_to' (composite' struct' machine nil')) machineName nil'
+    findMachine = binary' machineName (name' "=") (lookupStatic lookupMap key')
     in
-    function' n t a (program' prog)
+     [keyAssign, machineVar, findMachine]
+  getMachineSStub _ x = [x]
+    
+  cbufQ (µ -> Variable {vtype = t, vname = _, vvalue = _}) = cbufQ' t
+    where
+      cbufQ' (µ -> (TypedefT (Fix (Name "cbuf_t")))) = True
+      cbufQ' _ = False
+  cbufQ _ = False
+                        
+  machineInFunction :: String -> Fix Sem -> Fix Sem
+  machineInFunction s (µ -> Function n t (Fix (Arguments a)) (Fix (Program l))) = 
+    let state1 = concatMap stateChange $ concatMap (getMachine s) l
+        state2 = concatMap stateChange $ concatMap (getMachineSStub s) l
+        assert = disallowOthers l
+        exists p = (foldl (||) False) . (map p)
+        prog = assert ++ if exists cbufQ a then state2 else state1
+    in
+    function' n t (arguments' a) (program' prog)
+
   machineInFunction _ x = x
 
   getStateName :: Fix Sem -> [Fix Sem]
@@ -66,6 +88,7 @@ module Language.Composite.IDL.StateMachines where
     name' $ map toUpper a
   getEnd _ b = b
 
+{-
   getStateStruct :: String -> Fix Sem -> [Fix Sem]
   getStateStruct prefix (µ -> Name s) = 
     let start = variable' (int' signed' []) (name' "start") (cint' 0)
@@ -86,21 +109,23 @@ module Language.Composite.IDL.StateMachines where
     in 
      [composite' struct' (name' name) (group' [start, end])]
   getStateStruct _ _ = []
-
+-}
   createStateMachine :: [Fix Sem] -> String -> [Fix Sem]
   createStateMachine args n = 
     let structName = "__sg_" ++ n ++ "_sm"
         enumName   = "__sg_" ++ n ++ "_states"
-        stateName  = "__sg_" ++ n ++ "_state_"
+        --stateName  = "__sg_" ++ n ++ "_state_"
         stateNames = concatMap getStateName args
         enum = enumeration' (name' enumName) stateNames
         start = Prelude.foldr getStart nil' args
         curr = variable' (enumeration' (name' enumName) []) (name' "curr") start
         lookupMap = create (name' "lookup")
         struct = composite' struct' (name' structName) (group' [curr, lookupMap])
-        structs = concatMap (getStateStruct stateName) args
+        -- This code left in because it'll be necessary for advanced 
+        -- state machines with arbitrary state parameters
+        --structs = concatMap (getStateStruct stateName) args
     in
-     structs ++ [enum, struct]
+     {- structs ++ -} [enum, struct]
 
   acceptableBeginning :: Fix Sem -> [Fix Sem]
   acceptableBeginning (µ -> Binary s1 (Fix (Name "->")) _) = [s1]
@@ -117,9 +142,9 @@ module Language.Composite.IDL.StateMachines where
       [] -> []
       (b : bs) -> let 
         cur  = binary' (name' "__sg_m") (name' "->") (name' "cur")
-        ne   = \s -> binary' cur "!=" s
+        ne   = \(Fix (Name s)) -> binary' cur "==" (name' $ map toUpper s)
         neqs = map ne bs
-        cond = foldl (\a b -> binary' a (name' "&&") b) (ne b) neqs 
+        cond = foldl (\alpha beta -> binary' alpha (name' "||") beta) (ne b) neqs 
         in
          [funcall' (name' "assert") [cond]]
     
