@@ -3,7 +3,7 @@
 module Language.Composite.IDL.StateMachines where
   import Language.Pony
   import Language.Composite.IDL
-  import qualified Language.Composite.IDL.CVect as CVect (lookup)
+  import qualified Language.Composite.IDL.CVect as CVect (lookup, lookupStatic)
   import Data.Char (toUpper)
 
   stateChange :: Fix Sem -> [Fix Sem]
@@ -37,7 +37,7 @@ module Language.Composite.IDL.StateMachines where
     lookupMap = name' $ "__sg_" ++ s ++ "_sm_lookup"
     keyAssign = variable' (int' signed' [long']) keyName key
     machineVar = variable' (pointer_to' (builtin' machine)) machineName nil'
-    findMachine = binary' machineName (name' "=") (CVect.lookup lookupMap key)
+    findMachine = binary' machineName (name' "=") (CVect.lookupStatic lookupMap key)
      in
      [keyAssign, machineVar, findMachine]
   getMachine _ x = [x]
