@@ -8,31 +8,51 @@ module Main where
   import qualified Prelude (foldl)
   import Prelude
   
-  createSimpleStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
-  createSimpleStubCode fnname (Fix VoidT) fs =
+  createSimpleStubCode :: String -> Fix Sem -> [Field] -> Maybe [Fix Sem] -> String -> [Fix Sem]
+  createSimpleStubCode fnname (Fix VoidT) fs pres outName =
     let
+      pres'   = case pres of 
+        Nothing -> []
+        Just xs -> xs
+      assert  = disallowOthers pres'
+      stateM  = concatMap (getMachine outName) pres'
+      changes = concatMap stateChange pres'
       params  = arguments' $ map (\(t,n) -> variable' t (name' n) nil') fs
       fnname' = "__sg_" ++ fnname
       args    = map (\(_,n) -> name' n) fs
       call    = funcall' (name' fnname) args
-      ret     = return' nil'
+      inst    = stateM ++ assert  ++ [call] ++ changes
+      func    = function' (name' fnname') (Fix VoidT) params (program' inst)
     in
-     [function' (name' fnname') (Fix VoidT) params (program' [call, ret])]
-  createSimpleStubCode fnname rtype fs =
+     [func]
+  createSimpleStubCode fnname rtype fs pres outName =
     let
+      pres'   = case pres of 
+        Nothing -> []
+        Just xs -> xs
+      assert  = disallowOthers pres'
+      stateM  = concatMap (getMachine outName) pres'
+      changes = concatMap stateChange pres'
       params  = arguments' $ map (\(t,n) -> variable' t (name' n) nil') fs
       fnname' = "__sg_" ++ fnname
       args    = map (\(_,n) -> name' n) fs
       call    = funcall' (name' fnname) args
       retVar  = variable' rtype (name' "ret") call
       ret     = return' (name' "ret")
+      inst    = stateM ++ assert  ++ [retVar] ++ changes ++ [ret]
     in
-     [function' (name' fnname') rtype params (program' [retVar, ret])]
+     [function' (name' fnname') rtype params (program' inst)]
 
 
-  createStubCode :: String -> Fix Sem -> [Field] -> [Fix Sem]
-  createStubCode fnname rtype fs = 
+  createStubCode :: String -> Fix Sem -> [Field] -> Maybe [Fix Sem] -> String -> [Fix Sem]
+  createStubCode fnname rtype fs pres outName = 
     let
+      pres'   = case pres of 
+        Nothing -> []
+        Just xs -> xs
+      assert  = disallowOthers pres'
+      stateM  = concatMap (getMachineSStub outName) pres'
+      changes = concatMap stateChange pres'
       fnname' = "__sg_" ++ fnname
       structType = createStubStructName fnname
       (spdid, strLengs, fields) = getFields fs
@@ -54,11 +74,12 @@ module Main where
       ret = return' (name' "ret")
       retError = return' $ cint' (-5)
       dataFromCbuf = funcall' (name' "cbuf2buf") [name' "cbid", name' "len"]
-      instructions = [
+      instructions = stateM ++ assert ++ 
+                     [
                        variable' (pointer_to' structType) (name' "d") nil'
                      , binary' (name' "d") (name' "=") dataFromCbuf
                      , unlikely' (unary' (name' "!") (name' "d")) retError
-                     ] ++ lenChecks ++ [retVar, ret]
+                     ] ++ lenChecks ++ [retVar] ++ changes ++ [ret]
     in
      [ ustruct
      , function' (name' fnname') rtype params (program' instructions)
@@ -103,14 +124,15 @@ module Main where
   prototypeToSStub :: String -> Fix Sem -> Fix Sem -> [Fix Sem]
   prototypeToSStub n t p = let params = getFieldsFromParameters p in 
     if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
-    then createStubCode n t params
-    else []
-
-  prototypeToSStub' :: String -> Fix Sem -> Fix Sem -> [Fix Sem]
-  prototypeToSStub' n t p = let params = getFieldsFromParameters p in
+    then createStubCode n t params Nothing ""
+    else createSimpleStubCode n t params Nothing ""
+      
+  prototypeToSStub' :: String -> Fix Sem -> Fix Sem -> [Fix Sem] -> String -> [Fix Sem]
+  prototypeToSStub' n t p pres s = 
+    let params = getFieldsFromParameters p in
     if createC (Fix (Prototype {pname = Fix (Name n), ptype = t, pargs = p}))
-    then createStubCode n t params
-    else createSimpleStubCode n t params
+    then createStubCode n t params (Just pres) s
+    else createSimpleStubCode n t params (Just pres) s
 
 
   getIncludes :: Fix Sem -> [Fix Sem]
@@ -124,30 +146,27 @@ module Main where
   addBeforeRet s (x : xs) = x : (addBeforeRet s xs)
   addBeforeRet _ ([]) = []
 
-  addChecks :: [Fix Sem] -> [Fix Sem]
-  addChecks ((µ -> Post commands) : xs) = addChecks' commands xs
+  addChecks :: String -> [Fix Sem] -> [Fix Sem]
+  addChecks s ((µ -> Post commands) : xs) = addChecks' commands xs
     where addChecks' c ((µ -> Function n t a (Fix (Program comm))) : ys) =
-            function' n t a (program' $ addBeforeRet c comm) : addChecks ys
-          addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToSStub' n t p in
-            case stub of
-              (x : y : zs) -> x : (addChecks' c ((y : zs) ++ ys))
-              (y : _)      -> addChecks' c (stub ++ ys)
-              []           -> addChecks xs
+            function' n t a (program' $ addBeforeRet c comm) : addChecks s ys
+          addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToSStub' n t p commands s in
+            stub ++ addChecks s xs
           addChecks' c ((µ -> Pre commands) : ys) = addChecks' c ys
-          addChecks' _ _ = addChecks xs
-  addChecks ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : xs) = (prototypeToSStub n t p) ++ (addChecks xs)
-  addChecks (_ : xs) = addChecks xs
-  addChecks [] = []
+          addChecks' _ _ = addChecks s xs
+  addChecks s ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : xs) = (prototypeToSStub n t p) ++ (addChecks s xs)
+  addChecks s (_ : xs) = addChecks s xs
+  addChecks _ [] = []
 
   headerToSStub :: Fix Sem -> Fix Sem
   headerToSStub s@(µ -> Program commands) = 
     let name = head [str | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr str))])) <- universe s] 
         includes  = getIncludes s
         stateM    = addStateMachine s
-        commands' = addChecks commands
-        prog      = map (machineInFunction name) commands'
+        commands' = addChecks name commands
+        --prog      = map (machineInFunction name) commands'
     in
-    program' $ includes ++ stateM ++ prog
+    program' $ includes ++ stateM ++ commands'
   headerToSStub x = x
 
   prototypeToASM :: Fix Sem -> IO ()

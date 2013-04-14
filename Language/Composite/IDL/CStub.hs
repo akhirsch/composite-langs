@@ -16,6 +16,7 @@ module Main where
         Just xs -> xs
       assert = disallowOthers pres'
       stateMachine = concatMap (getMachine outName) pres'
+      changes = concatMap stateChange pres'
       usr_inv_cap = composite' struct' (name' "user_inv_cap") nil'
       structure = variable' (pointer_to' usr_inv_cap) (name' "uc") nil'
       paramToVar = \(t,n) -> variable' t (name' n) nil'
@@ -31,7 +32,8 @@ module Main where
       returnValue = variable' returnType (name' "ret") nil'
       returnInst = return' (name' "ret")
       fault = variable' (int' signed' []) (name' "fault") intZero
-      instructions = stateMachine ++ assert ++ [fault, returnValue, asm, returnInst]
+      instructions = stateMachine ++ assert ++ changes ++
+                     [fault, returnValue, asm, returnInst]
       
     in
      [function' (name' fnname') rtype params (program' instructions)]
