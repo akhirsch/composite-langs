@@ -74,12 +74,11 @@ module Main where
       ret = return' (name' "ret")
       retError = return' $ cint' (-5)
       dataFromCbuf = funcall' (name' "cbuf2buf") [name' "cbid", name' "len"]
-      instructions = stateM ++ assert ++ 
-                     [
+      instructions = [
                        variable' (pointer_to' structType) (name' "d") nil'
                      , binary' (name' "d") (name' "=") dataFromCbuf
                      , unlikely' (unary' (name' "!") (name' "d")) retError
-                     ] ++ lenChecks ++ [retVar] ++ changes ++ [ret]
+                     ] ++ stateM ++ assert ++ lenChecks ++ [retVar] ++ changes ++ [ret]
     in
      [ ustruct
      , function' (name' fnname') rtype params (program' instructions)
@@ -151,7 +150,7 @@ module Main where
     where addChecks' c ((µ -> Function n t a (Fix (Program comm))) : ys) =
             function' n t a (program' $ addBeforeRet c comm) : addChecks s ys
           addChecks' c ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : ys) = let stub = prototypeToSStub' n t p commands s in
-            stub ++ addChecks s xs
+            stub ++ addChecks s ys
           addChecks' c ((µ -> Pre commands) : ys) = addChecks' c ys
           addChecks' _ _ = addChecks s xs
   addChecks s ((µ -> Prototype {pname = Fix (Name n), ptype = t, pargs = p}) : xs) = (prototypeToSStub n t p) ++ (addChecks s xs)

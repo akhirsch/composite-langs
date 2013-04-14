@@ -2,12 +2,12 @@ module Language.Composite.IDL.CVect where
   import Language.Pony
   
   create :: Fix Sem -> Fix Sem  
-  create name = variable' (builtin' "cvect_t") name nil' 
+  create name = variable' (pointer_to' $ typedef_t' "cvect_t") name nil' 
 
   createStatic :: Fix Sem -> Fix Sem
   createStatic name = 
     let cvectValue = name' "{.vect = {{.c.next = NULL}}}"
-    in variable' (builtin' "cvect_t") name cvectValue
+    in variable' (pointer_to' $ typedef_t' "cvect_t") name cvectValue
        
   initialize :: Fix Sem -> Fix Sem
   initialize name = funcall' (name' "cvect_init") [name]

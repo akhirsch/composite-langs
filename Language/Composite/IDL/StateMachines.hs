@@ -13,7 +13,7 @@ module Language.Composite.IDL.StateMachines where
         set         = binary' curState (name' "=") (name' $ map toUpper s2)
     in
      [ifthen' check set]
-  stateChange x = []
+  stateChange _ = []
   
   addStateMachine :: Fix Sem -> [Fix Sem]
   addStateMachine sem = let name = head [s | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem]
@@ -39,7 +39,7 @@ module Language.Composite.IDL.StateMachines where
     findMachine = binary' machineName (name' "=") (lookupStatic lookupMap key)
      in
      [keyAssign, machineVar, findMachine]
-  getMachine _ x = []
+  getMachine _ _ = []
   
   getMachineSStub :: String -> Fix Sem -> [Fix Sem]
   getMachineSStub s (µ -> FunCall (Fix (Name "key")) [key@(Fix(Name _))]) = let
@@ -53,24 +53,7 @@ module Language.Composite.IDL.StateMachines where
     findMachine = binary' machineName (name' "=") (lookupStatic lookupMap key')
     in
      [keyAssign, machineVar, findMachine]
-  getMachineSStub _ x = [x]
-    
-  cbufQ (µ -> Variable {vtype = t, vname = _, vvalue = _}) = cbufQ' t
-    where
-      cbufQ' (µ -> (TypedefT (Fix (Name "cbuf_t")))) = True
-      cbufQ' _ = False
-  cbufQ _ = False
-                        
-  machineInFunction :: String -> Fix Sem -> Fix Sem
-  machineInFunction s (µ -> Function n t (Fix (Arguments a)) (Fix (Program l))) = 
-    let state1 = concatMap stateChange $ concatMap (getMachine s) l
-        state2 = concatMap stateChange $ concatMap (getMachineSStub s) l
-        assert = disallowOthers l
-        exists p = (foldl (||) False) . (map p)
-        prog = assert ++ if exists cbufQ a then state2 else state1
-    in
-    function' n t (arguments' a) (program' prog)
-  machineInFunction _ x = x
+  getMachineSStub _ _ = []
 
   getStateName :: Fix Sem -> [Fix Sem]
   getStateName (µ -> Name s) = [name' $ map toUpper s]
@@ -117,14 +100,23 @@ module Language.Composite.IDL.StateMachines where
         stateNames = concatMap getStateName args
         enum = enumeration' (name' enumName) stateNames
         start = Prelude.foldr getStart nil' args
-        curr = variable' (enumeration' (name' enumName) []) (name' "curr") start
+        curr = variable' (enumeration' (name' enumName) []) (name' "curr") nil'
         lookupMap = create (name' "lookup")
         struct = composite' struct' (name' structName) (group' [curr, lookupMap])
+        localCurr = binary' (name' "sm") (name' "->") (name' "curr")        
+        setCurr = binary' localCurr (name' "=") start
+        smType = composite' struct' (name' structName) nil'
+        localSM = variable' (pointer_to' smType) (name' "sm") nil'
+        initLookup = initialize $ binary' (name' "sm") (name' "->") (name' "lookup")
+        initName = name' $ structName ++ "_init"
+        instructions = program' [setCurr, initLookup]
+        initStruct = function' initName (Fix VoidT) (arguments' [localSM]) instructions
+
         -- This code left in because it'll be necessary for advanced 
         -- state machines with arbitrary state parameters
         --structs = concatMap (getStateStruct stateName) args
     in
-     {- structs ++ -} [enum, struct]
+     {- structs ++ -} [enum, struct, initStruct]
 
   acceptableBeginning :: Fix Sem -> [Fix Sem]
   acceptableBeginning (µ -> Binary s1 (Fix (Name "->")) _) = [s1]
