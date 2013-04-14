@@ -8,7 +8,7 @@ module Language.Composite.IDL.StateMachines where
   stateChange :: Fix Sem -> [Fix Sem]
   stateChange (µ -> Binary (Fix (Name s1)) (Fix (Name "->")) (Fix (Name s2))) =
     let machineName = name' "__sg_m"
-        curState    = binary' machineName (name' "->") (name' "cur")
+        curState    = binary' machineName (name' "->") (name' "curr")
         check       = binary' curState (name' "==") (name' $ map toUpper s1)
         set         = binary' curState (name' "=") (name' $ map toUpper s2)
     in
@@ -132,7 +132,7 @@ module Language.Composite.IDL.StateMachines where
     case begs of 
       [] -> []
       (b : bs) -> let 
-        cur  = binary' (name' "__sg_m") (name' "->") (name' "cur")
+        cur  = binary' (name' "__sg_m") (name' "->") (name' "curr")
         ne   = \(Fix (Name s)) -> binary' cur "==" (name' $ map toUpper s)
         neqs = map ne bs
         cond = foldl (\alpha beta -> binary' alpha (name' "||") beta) (ne b) neqs 
