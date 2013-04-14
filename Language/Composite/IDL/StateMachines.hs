@@ -13,7 +13,7 @@ module Language.Composite.IDL.StateMachines where
         set         = binary' curState (name' "=") (name' $ map toUpper s2)
     in
      [ifthen' check set]
-  stateChange x = [x]
+  stateChange x = []
   
   addStateMachine :: Fix Sem -> [Fix Sem]
   addStateMachine sem = let name = head [s | (Fix (FunCall (Fix (Name "cidl_outport")) [(Fix (CStr s))])) <- universe sem]
@@ -39,7 +39,7 @@ module Language.Composite.IDL.StateMachines where
     findMachine = binary' machineName (name' "=") (lookupStatic lookupMap key)
      in
      [keyAssign, machineVar, findMachine]
-  getMachine _ x = [x]
+  getMachine _ x = []
   
   getMachineSStub :: String -> Fix Sem -> [Fix Sem]
   getMachineSStub s (µ -> FunCall (Fix (Name "key")) [key@(Fix(Name _))]) = let
@@ -70,7 +70,6 @@ module Language.Composite.IDL.StateMachines where
         prog = assert ++ if exists cbufQ a then state2 else state1
     in
     function' n t (arguments' a) (program' prog)
-
   machineInFunction _ x = x
 
   getStateName :: Fix Sem -> [Fix Sem]
